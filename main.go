@@ -1,6 +1,8 @@
 package main
 
 import (
+	"ImitationParallelLLMProcessing/agent"
+	server "ImitationParallelLLMProcessing/sever"
 	"context"
 	"log"
 	"time"
@@ -13,28 +15,20 @@ func main() {
 }
 
 func run() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	//f, err := os.Open("tickets.json")
-	//if err != nil {
-	//	return err
-	//}
-	//defer f.Close()
-	//
-	//dec := json.NewDecoder(f)
-	//for {
-	//	var ticket agent.Ticket
-	//	if err := dec.Decode(&ticket); errors.Is(err, io.EOF) {
-	//		break
-	//	} else if err != nil {
-	//		return err
-	//	}
-	//
-	//	if err := (agent.FakeAgent{}).Process(ctx, ticket); err != nil {
-	//		log.Printf("ticket %s: %v", ticket.ID, err)
-	//	}
-	//}
-	//
-	//return nil
+	ch := make(chan agent.Ticket)
+	go Run(ctx, ch)
+
+	srv := server.NewServer(ch)
+	serverErr := make(chan error, 1)
+	go func() { serverErr <- srv.Run(":9091") }()
+
+	select {
+	case err := <-serverErr:
+		return err
+	case <-ctx.Done():
+		return nil
+	}
 }
