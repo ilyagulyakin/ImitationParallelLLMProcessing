@@ -23,9 +23,9 @@ type config struct {
 }
 
 func main() {
-	workers := flag.Int("workers", 4, "число воркеров")
-	soft := flag.Duration("soft-shutdown", 30*time.Second, "мягкий дедлайн остановки")
-	hard := flag.Duration("hard-shutdown", 60*time.Second, "жёсткий дедлайн остановки")
+	workers := flag.Int("workers", 2, "число воркеров")
+	soft := flag.Duration("soft-shutdown", 10*time.Second, "мягкий дедлайн остановки")
+	hard := flag.Duration("hard-shutdown", 10*time.Second, "жёсткий дедлайн остановки")
 	flag.Parse()
 
 	if *workers < 1 {
