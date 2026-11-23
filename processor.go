@@ -2,35 +2,47 @@ package main
 
 import (
 	"ImitationParallelLLMProcessing/agent"
-	"context"
 	"log"
+	"sync"
+	"sync/atomic"
 )
 
-func Run(ctx context.Context, ch <-chan agent.Ticket) {
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println("процессор: контекст отменён, выхожу")
-			return
-		case ticket, ok := <-ch:
-			if !ok {
-				log.Println("процессор: канал закрыт, выхожу")
-				return
+var processed atomic.Int64
+
+// Processed возвращает число завершённых тикетов.
+func Processed() int64 {
+	return processed.Load()
+}
+
+// Run обрабатывает тикеты, пока канал не закрыт. Выход только по close(ch).
+// Всё, что успело попасть в канал, будет обработано.
+func Run(ch <-chan agent.Ticket, workers int) {
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for id := 1; id <= workers; id++ {
+		go func(id int) {
+			defer wg.Done()
+			for ticket := range ch {
+				log.Printf("PROCESSOR[%d]: обрабатываю %s: %s", id, ticket.ID, ticket.Text)
+				process(id, ticket)
+				processed.Add(1)
 			}
+		}(id)
+	}
 
-			// лог ДО обработки — «взял в работу»
-			log.Printf("обрабатываю %s: %s", ticket.ID, ticket.Text)
+	wg.Wait()
+	log.Println("PROCESSOR: все воркеры завершены")
+}
 
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("PANIC на тикете %s: %v", ticket.ID, r)
-					}
-				}()
-				if err := (agent.FakeAgent{}).Process(ctx, ticket); err != nil {
-					log.Printf("ticket %s: %v", ticket.ID, err)
-				}
-			}()
+func process(worker int, ticket agent.Ticket) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PROCESSOR[%d]: PANIC на тикете %s: %v", worker, ticket.ID, r)
 		}
+	}()
+
+	if err := (agent.FakeAgent{}).Process(ticket); err != nil {
+		log.Printf("PROCESSOR[%d]: ticket %s: %v", worker, ticket.ID, err)
 	}
 }
